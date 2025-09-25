@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	<LangVersion>preview</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Resources\table_s1.bin" />
+    <None Remove="Resources\table_s10.bin" />
+    <None Remove="Resources\table_s2.bin" />
+    <None Remove="Resources\table_s3.bin" />
+    <None Remove="Resources\table_s4.bin" />
+    <None Remove="Resources\table_s5.bin" />
+    <None Remove="Resources\table_s6.bin" />
+    <None Remove="Resources\table_s7.bin" />
+    <None Remove="Resources\table_s8.bin" />
+    <None Remove="Resources\table_s9.bin" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\table_s1.bin" />
+    <EmbeddedResource Include="Resources\table_s10.bin" />
+    <EmbeddedResource Include="Resources\table_s2.bin" />
+    <EmbeddedResource Include="Resources\table_s3.bin" />
+    <EmbeddedResource Include="Resources\table_s4.bin" />
+    <EmbeddedResource Include="Resources\table_s5.bin" />
+    <EmbeddedResource Include="Resources\table_s6.bin" />
+    <EmbeddedResource Include="Resources\table_s7.bin" />
+    <EmbeddedResource Include="Resources\table_s8.bin" />
+    <EmbeddedResource Include="Resources\table_s9.bin" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibALAC" Version="1.0.7" />
+    <PackageReference Include="Makaretu.Dns.Multicast.New" Version="0.38.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
+    <PackageReference Include="plist-cil" Version="2.3.1" />
+    <PackageReference Include="Rebex.Elliptic.Curve25519" Version="1.2.2" />
+    <PackageReference Include="Rebex.Elliptic.Ed25519" Version="1.2.2" />
+    <PackageReference Include="SharpJaad.AAC" Version="0.0.6" />
+  </ItemGroup>
+
+</Project>
