@@ -64,4 +64,14 @@ internal class AESCTRBufferedCipher : IDisposable
 
         return new(aesKey, aesIv);
     }
+
+    public static AESCTRBufferedCipher CreateStream(string streamConnectionId, byte[] decryptedAesKey, byte[] ecdhShared)
+    {
+        byte[] eaesKey = AESUtils.HashAndTruncate(decryptedAesKey, ecdhShared);
+
+        byte[] aesKey = AESUtils.HashAndTruncate(Encoding.UTF8.GetBytes(AESUtils.AIR_PLAY_STREAM_KEY + streamConnectionId), eaesKey);
+        byte[] aesIv = AESUtils.HashAndTruncate(Encoding.UTF8.GetBytes(AESUtils.AIR_PLAY_STREAM_IV + streamConnectionId), eaesKey);
+
+        return new(aesKey, aesIv);
+    }
 }

@@ -1,5 +1,4 @@
 ﻿using AirPlay.Core2.Connections.Audio;
-using AirPlay.Core2.Models.Messages;
 using AirPlay.Core2.Models.Messages.Audio;
 using AirPlay.Core2.Utils;
 

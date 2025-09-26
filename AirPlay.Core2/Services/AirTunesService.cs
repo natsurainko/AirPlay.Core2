@@ -14,16 +14,16 @@ public class AirTunesService(SessionManager sessionManager,
 {
     private readonly ILogger<AirTunesService> _logger = loggerFactory.CreateLogger<AirTunesService>();
 
-    private readonly TcpListener tcpListener = new(IPAddress.Any, options.Value.Port);
+    private readonly TcpListener _tcpListener = new(IPAddress.Any, options.Value.Port);
     private readonly ConcurrentDictionary<IPEndPoint, RtspConnection> _rtspConnections = [];
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        tcpListener.Start();
+        _tcpListener.Start();
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var client = await tcpListener.AcceptTcpClientAsync(stoppingToken);
+            var client = await _tcpListener.AcceptTcpClientAsync(stoppingToken);
             _logger.RtspClientAccpeted(client.Client.RemoteEndPoint);
 
             if (client.Client.RemoteEndPoint is not IPEndPoint remoteEndPoint)
@@ -58,8 +58,8 @@ public class AirTunesService(SessionManager sessionManager,
 
     public override Task StopAsync(CancellationToken cancellationToken)
     {
-        tcpListener.Stop();
-        tcpListener.Dispose();
+        _tcpListener.Stop();
+        _tcpListener.Dispose();
 
         return base.StopAsync(cancellationToken);
     }

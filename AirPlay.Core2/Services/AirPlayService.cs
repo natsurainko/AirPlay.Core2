@@ -14,16 +14,16 @@ public class AirPlayService(ILoggerFactory loggerFactory, IOptions<AirPlayConfig
 {
     private readonly ILogger<AirPlayService> _logger = loggerFactory.CreateLogger<AirPlayService>();
 
-    private readonly TcpListener tcpListener = new(IPAddress.Any, options.Value.Port);
+    private readonly TcpListener _tcpListener = new(IPAddress.Any, options.Value.Port);
     private readonly ConcurrentDictionary<IPEndPoint, ModifiedHttpConnection> _httpConnections = [];
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        tcpListener.Start();
+        _tcpListener.Start();
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var client = await tcpListener.AcceptTcpClientAsync(stoppingToken);
+            var client = await _tcpListener.AcceptTcpClientAsync(stoppingToken);
             _logger.HttpClientAccpeted(client.Client.RemoteEndPoint);
 
             if (client.Client.RemoteEndPoint is not IPEndPoint remoteEndPoint)

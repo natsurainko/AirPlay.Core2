@@ -250,6 +250,8 @@ public partial class RtspConnection
             var stream = (Dictionary<string, object>)((object[])nSObject.ToObject())[0];
             short type = Convert.ToInt16((int)stream["type"]);
 
+            NSDictionary? keyValuePairs = null;
+
             if (type == 96)
             {
                 if (!stream.TryGetValue("audioFormat", out object? audioFormatValue)) return;
@@ -268,7 +270,7 @@ public partial class RtspConnection
 
                 _deviceSession?.AudioController?.BeginConnectionWorkers();
 
-                NSDictionary keyValuePairs = new()
+                keyValuePairs = new()
                 {
                     {
                         "streams",
@@ -285,6 +287,33 @@ public partial class RtspConnection
                     { "timingPort", (int)_deviceSession!.AudioController!.TimingPort },
                 };
 
+            }
+            else if (type == 110)
+            {
+                if (!stream.TryGetValue("streamConnectionID", out object? streamConnectionIDValue)) return;
+
+                stream.TryGetValue("latencyMs", out object? latencyMsValue);
+                //stream.TryGetValue("timestampinfo", out object? timestampinfoValue);
+
+                keyValuePairs = new()
+                {
+                    {
+                        "streams",
+                        new NSArray()
+                        {
+                            new NSDictionary
+                            {
+                                { "dataPort", (int)_deviceSession!.AudioController!.DataPort },
+                                { "type", 110 },
+                            }
+                        }
+                    },
+                    { "timingPort", (int)_deviceSession!.AudioController!.TimingPort },
+                };
+            }
+
+            if (keyValuePairs is not null)
+            {
                 var plistBytes = BinaryPropertyListWriter.WriteToArray(keyValuePairs);
 
                 responseMessage.Headers.Add("Content-Type", "application/x-apple-binary-plist");

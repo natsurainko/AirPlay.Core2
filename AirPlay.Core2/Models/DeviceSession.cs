@@ -30,6 +30,8 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
 
     public AudioController? AudioController { get; private set; }
 
+    public MirrorController? MirrorController { get; private set; }
+
     public event EventHandler<MediaProgressInfo>? MediaProgressInfoReceived;
     public event EventHandler<MediaWorkInfo>? MediaWorkInfoReceived;
     public event EventHandler<byte[]>? MediaCoverReceived;
