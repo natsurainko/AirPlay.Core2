@@ -293,7 +293,10 @@ public partial class RtspConnection
                 if (!stream.TryGetValue("streamConnectionID", out object? streamConnectionIDValue)) return;
 
                 stream.TryGetValue("latencyMs", out object? latencyMsValue);
-                //stream.TryGetValue("timestampinfo", out object? timestampinfoValue);
+                stream.TryGetValue("timestampinfo", out object? timestampinfoValue);
+
+                _deviceSession?.CreateMirrorController(unchecked((ulong)(long)streamConnectionIDValue).ToString());
+                _deviceSession?.MirrorController?.BeginConnectionWorkers();
 
                 keyValuePairs = new()
                 {
@@ -303,12 +306,12 @@ public partial class RtspConnection
                         {
                             new NSDictionary
                             {
-                                { "dataPort", (int)_deviceSession!.AudioController!.DataPort },
+                                { "dataPort", (int)_deviceSession!.MirrorController!.DataPort },
                                 { "type", 110 },
                             }
                         }
                     },
-                    { "timingPort", (int)_deviceSession!.AudioController!.TimingPort },
+                    { "timingPort", (int)_deviceSession!.MirrorController!.TimingPort },
                 };
             }
 
@@ -410,11 +413,14 @@ public partial class RtspConnection
                 short type = Convert.ToInt16((int)stream["type"]);
 
                 if (type == 96) _deviceSession?.CloseAudioController();
+                if (type == 110) _deviceSession?.CloseMirrorController();
             }
         }
         else
         {
             _deviceSession?.CloseAudioController();
+            _deviceSession?.CloseMirrorController();
+
             _disconnectRequested = true;
         }
 

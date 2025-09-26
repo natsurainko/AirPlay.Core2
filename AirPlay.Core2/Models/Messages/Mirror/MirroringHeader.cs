@@ -3,48 +3,40 @@
 public readonly struct MirroringHeader
 {
     public int PayloadSize { get; }
-
-    public ushort PayloadType { get; }
-
-    public ushort PayloadOption { get; }
-
-    public ulong PayloadNtp { get; }
-
-    public ulong PayloadPts { get; }
-
-    public uint WidthSource { get; }
-
-    public uint HeightSource { get; }
-
-    public uint Width { get; }
-
-    public uint Height { get; }
+    public short PayloadType { get; }
+    public short PayloadOption { get; }
+    public long PayloadNtp { get; }
+    public long PayloadPts { get; }
+    public int WidthSource { get; }
+    public int HeightSource { get; }
+    public int Width { get; }
+    public int Height { get; }
 
     public MirroringHeader(byte[] header)
     {
-        using var memoryStream = new MemoryStream(header);
-        using var reader = new BinaryReader(memoryStream);
+        using var mem = new MemoryStream(header);
+        using var reader = new BinaryReader(mem);
 
         PayloadSize = (int)reader.ReadUInt32();
-        PayloadType = (ushort)(reader.ReadUInt16() & 0xff);
-        PayloadOption = reader.ReadUInt16();
+        PayloadType = (short)(reader.ReadUInt16() & 0xff);
+        PayloadOption = (short)reader.ReadUInt16();
 
         if (PayloadType == 0)
         {
-            PayloadNtp = reader.ReadUInt64();
+            PayloadNtp = (long)reader.ReadUInt64();
             PayloadPts = NtpToPts(PayloadNtp);
         }
         else if (PayloadType == 1)
         {
-            memoryStream.Position = 40;
-            WidthSource = (uint)reader.ReadSingle();
-            HeightSource = (uint)reader.ReadSingle();
+            mem.Position = 40;
+            WidthSource = (int)reader.ReadSingle();
+            HeightSource = (int)reader.ReadSingle();
 
-            memoryStream.Position = 56;
-            Width = (uint)reader.ReadSingle();
-            Height = (uint)reader.ReadSingle();
+            mem.Position = 56;
+            Width = (int)reader.ReadSingle();
+            Height = (int)reader.ReadSingle();
         }
     }
 
-    private static ulong NtpToPts(ulong ntp) => (((ntp >> 32) & 0xffffffff) * 1000000) + ((ntp & 0xffffffff) * 1000 * 1000 / int.MaxValue);
+    private static long NtpToPts(long ntp) => (((ntp >> 32) & 0xffffffff) * 1000000) + ((ntp & 0xffffffff) * 1000 * 1000 / int.MaxValue);
 }

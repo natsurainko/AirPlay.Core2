@@ -14,6 +14,9 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
     public event EventHandler? AudioControllerCreated;
     public event EventHandler? AudioControllerClosed;
 
+    public event EventHandler? MirrorControllerCreated;
+    public event EventHandler? MirrorControllerClosed;
+
     public required string DeviceDisplayName { get; init; }
 
     public required string DeviceMacAddress { get; init; }
@@ -67,6 +70,26 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
         }
     }
 
+    public void CreateMirrorController(string streamConnectionId)
+    {
+        MirrorController = new MirrorController(streamConnectionId, (_decryptedAesKey, aesIv, ecdhShared));
+        MirrorControllerCreated?.Invoke(this, EventArgs.Empty);
+        logger?.ControllerCreated("Mirror", DeviceDisplayName);
+    }
+
+    public void CloseMirrorController()
+    {
+        if (MirrorController != null)
+        {
+            MirrorController.EndConnectionWorkers();
+            MirrorController.Dispose();
+            MirrorController = null;
+
+            MirrorControllerClosed?.Invoke(this, EventArgs.Empty);
+            logger?.ControllerClosed("Mirror", DeviceDisplayName);
+        }
+    }
+
     public async Task SendMediaControlCommandAsync(HttpClient httpClient, MediaControlCommand command)
     {
         if (DacpServiceEndPoint == null)
@@ -81,6 +104,7 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
     public void Dispose()
     {
         CloseAudioController();
+        CloseMirrorController();
     }
 
     internal void RemoteSetProgress(MediaProgressInfo progressInfo) => MediaProgressInfoReceived?.Invoke(this, progressInfo);
