@@ -1,6 +1,5 @@
 ﻿using AirPlay.Core2.Connections;
 using AirPlay.Core2.Models.Configs;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,7 +24,7 @@ public class AirTunesService(SessionManager sessionManager,
         while (!stoppingToken.IsCancellationRequested)
         {
             var client = await tcpListener.AcceptTcpClientAsync(stoppingToken);
-            _logger.ClientAccpeted(client.Client.RemoteEndPoint);
+            _logger.RtspClientAccpeted(client.Client.RemoteEndPoint);
 
             if (client.Client.RemoteEndPoint is not IPEndPoint remoteEndPoint)
             {
@@ -69,7 +68,7 @@ public class AirTunesService(SessionManager sessionManager,
 internal static partial class AirTunesServiceLoggers
 {
     [LoggerMessage(LogLevel.Information, "Client from [{endPoint}] accepted, creating RtspConnection..")]
-    public static partial void ClientAccpeted(this ILogger logger, EndPoint? endPoint);
+    public static partial void RtspClientAccpeted(this ILogger logger, EndPoint? endPoint);
 
     [LoggerMessage(LogLevel.Information, "Device [\"{model}\": \"{name}\"] Session Paired")]
     public static partial void DevicePaired(this ILogger logger, string name, string? model);

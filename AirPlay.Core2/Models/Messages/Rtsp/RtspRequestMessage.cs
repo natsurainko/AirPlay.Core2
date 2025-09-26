@@ -47,11 +47,7 @@ public partial class RtspRequestMessage
 
         foreach (var headerStr in rows.Skip(1))
         {
-            if (string.IsNullOrWhiteSpace(headerStr))
-            {
-                // End of headers
-                break;
-            }
+            if (string.IsNullOrWhiteSpace(headerStr)) break; // End of headers
 
             if (RtspHeader.TryParse(headerStr, out var header))
                 rtspHeaders.Add(header);
@@ -127,25 +123,25 @@ partial class RtspRequestMessage
     {
         if (hex.StartsWith(GET, StringComparison.OrdinalIgnoreCase))
             return RequestType.GET;
-        if (hex.StartsWith(POST, StringComparison.OrdinalIgnoreCase))
+        else if (hex.StartsWith(POST, StringComparison.OrdinalIgnoreCase))
             return RequestType.POST;
-        if (hex.StartsWith(SETUP, StringComparison.OrdinalIgnoreCase))
+        else if (hex.StartsWith(SETUP, StringComparison.OrdinalIgnoreCase))
             return RequestType.SETUP;
-        if (hex.StartsWith(RECORD, StringComparison.OrdinalIgnoreCase))
+        else if (hex.StartsWith(RECORD, StringComparison.OrdinalIgnoreCase))
             return RequestType.RECORD;
-        if (hex.StartsWith(GET_PARAMETER, StringComparison.OrdinalIgnoreCase))
+        else if (hex.StartsWith(GET_PARAMETER, StringComparison.OrdinalIgnoreCase))
             return RequestType.GET_PARAMETER;
-        if (hex.StartsWith(SET_PARAMETER, StringComparison.OrdinalIgnoreCase))
+        else if (hex.StartsWith(SET_PARAMETER, StringComparison.OrdinalIgnoreCase))
             return RequestType.SET_PARAMETER;
-        if (hex.StartsWith(OPTIONS, StringComparison.OrdinalIgnoreCase))
+        else if (hex.StartsWith(OPTIONS, StringComparison.OrdinalIgnoreCase))
             return RequestType.OPTIONS;
-        if (hex.StartsWith(ANNOUNCE, StringComparison.OrdinalIgnoreCase))
+        else if (hex.StartsWith(ANNOUNCE, StringComparison.OrdinalIgnoreCase))
             return RequestType.ANNOUNCE;
-        if (hex.StartsWith(FLUSH, StringComparison.OrdinalIgnoreCase))
+        else if (hex.StartsWith(FLUSH, StringComparison.OrdinalIgnoreCase))
             return RequestType.FLUSH;
-        if (hex.StartsWith(TEARDOWN, StringComparison.OrdinalIgnoreCase))
+        else if (hex.StartsWith(TEARDOWN, StringComparison.OrdinalIgnoreCase))
             return RequestType.TEARDOWN;
-        if (hex.StartsWith(PAUSE, StringComparison.OrdinalIgnoreCase))
+        else if (hex.StartsWith(PAUSE, StringComparison.OrdinalIgnoreCase))
             return RequestType.PAUSE;
 
         return null;

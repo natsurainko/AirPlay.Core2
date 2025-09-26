@@ -118,7 +118,7 @@ public partial class RtspConnection : IDisposable
             }
 
             foreach (var requestMessage in RtspRequestMessage.ParseRequestsFromHex(rawHexData))
-                await HandleRequestMessageAsync(requestMessage, networkStream, cancellationToken)
+                await HandleRequestMessageAsync(requestMessage, cancellationToken)
                     .ContinueWith(async t => await HandleResponseMessageAsync(requestMessage, t.Result, networkStream, cancellationToken), TaskContinuationOptions.OnlyOnRanToCompletion);
 
             lastRequestTime = DateTime.Now;
@@ -127,7 +127,7 @@ public partial class RtspConnection : IDisposable
         }
     }
 
-    private async Task<RtspResponseMessage> HandleRequestMessageAsync(RtspRequestMessage requestMessage, NetworkStream networkStream, CancellationToken cancellationToken)
+    private async Task<RtspResponseMessage> HandleRequestMessageAsync(RtspRequestMessage requestMessage, CancellationToken cancellationToken)
     {
         var responseMessage = requestMessage.CreateResponse();
 
@@ -184,12 +184,14 @@ public partial class RtspConnection : IDisposable
         {
             await networkStream.WriteAsync(payloadBuffer, cancellationToken);
             await networkStream.FlushAsync(cancellationToken);
-
-            responseMessage.Dispose();
         }
         catch (IOException) 
         {
             _logger?.SendResponseMessageError(_ActiveRemote!, requestMessage.Type, requestMessage.Path);
+        }
+        finally
+        {
+            responseMessage.Dispose();
         }
     }
 

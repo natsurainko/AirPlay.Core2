@@ -34,9 +34,6 @@ public class DacpDiscoveryService(MulticastService mdns, SessionManager sessionM
 
     private void OnServiceInstanceDiscovered(object? sender, ServiceInstanceDiscoveryEventArgs e)
     {
-        foreach (var item in e.Message.Answers)
-            Debug.WriteLine(item);
-
         if (e.Message.Answers.Any(a => a is SRVRecord && a.CanonicalName.StartsWith($"iTunes_Ctrl_", StringComparison.OrdinalIgnoreCase)))
         {
             SRVRecord sRVRecord = e.Message.Answers.OfType<SRVRecord>()
