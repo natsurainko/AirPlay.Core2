@@ -26,15 +26,18 @@ public partial class RtspConnection
                     new()
                     {
                         { "primaryInputDevice", 1 },
-                        { "rotation", true },
-                        { "widthPhysical", 0 },
-                        { "edid", "AP///////wAGEBOuhXxiyAoaAQS1PCJ4IA8FrlJDsCYOT1QAAAABAQEBAQEBAQEBAQEBAQEBAAAAEAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAA/ABpTWFjCiAgICAgICAgAAAAAAAAAAAAAAAAAAAAAAAAAqBwE3kDAAMAFIBuAYT/E58AL4AfAD8LUQACAAQAf4EY+hAAAQEAEnYx/Hj7/wIQiGLT+vj4/v//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADHkHATeQMAAwFQU+wABP8PnwAvAB8A/whBAAIABABM0AAE/w6fAC8AHwBvCD0AAgAEAMyRAAR/DJ8ALwAfAAcHMwACAAQAVV4ABP8JnwAvAB8AnwUoAAIABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB+Q" },
+                        { "rotation", false },
+                        { "width", 1920 },
+                        { "height", 1080 },
+                        { "widthPhysical", false },
+                        { "heightPhysical", false },
                         { "widthPixels", 1920.0 },
-                        { "uuid", "061013ae-7b0f-4305-984b-974f677a150b" },
-                        { "heightPhysical", 0 },
-                        { "features", 30 },
                         { "heightPixels", 1080.0 },
-                        { "overscanned", false }
+                        { "refreshRate", 60 },
+                        { "maxFPS", 30 },
+                        { "features", 14 },
+                        { "overscanned", false },
+                        { "uuid", "061013ae-7b0f-4305-984b-974f677a150b" },
                     }
                 }
             },

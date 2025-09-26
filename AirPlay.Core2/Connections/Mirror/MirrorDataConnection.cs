@@ -70,7 +70,7 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
 
                     await networkStream.ReadExactlyAsync(payloadBuffer, cancellationToken);
 
-                    if (mirroringHeader.PayloadType == 5)
+                    if (mirroringHeader.PayloadType == 0)
                     {
                         DecryptVideoData(payloadBuffer, out byte[] output);
 
@@ -90,8 +90,6 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
                         TryProcessSpsPps(payloadBuffer, out _spsPps);
                     }
                 }
-
-                await Task.Delay(10, cancellationToken);
             }
         }
         finally
