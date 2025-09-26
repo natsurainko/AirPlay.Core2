@@ -1,4 +1,5 @@
-﻿using AirPlay.Core2.Extensions;
+﻿using AirPlay.App.Services;
+using AirPlay.Core2.Extensions;
 using AirPlay.Core2.Models.Configs;
 using AirPlay.Example.ConsoleApp.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,7 @@ Host.CreateDefaultBuilder(args)
         services.Configure<AirPlayConfig>(c => c.ServiceName = "AirPlay Example Console");
 
         services.AddHostedService<AudioPlayService>();
+        services.AddHostedService<MirrorService>();
 
         services.AddSerilog(configure =>
         {
