@@ -42,7 +42,7 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
     private async Task DataMessageLoopWorker(CancellationToken cancellationToken)
     {
         _tcpListener.Start();
-        byte[] headerBuffer = ArrayPool<byte>.Shared.Rent(128);
+        using var headerBuffer = MemoryPool<byte>.Shared.Rent(128);
 
         try
         {
@@ -55,17 +55,16 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
             {
                 while (networkStream.DataAvailable)
                 {
-                    await networkStream.ReadExactlyAsync(headerBuffer, cancellationToken);
+                    await networkStream.ReadExactlyAsync(headerBuffer.Memory[..128], cancellationToken);
 
-                    if ((headerBuffer[0] == 80 && headerBuffer[1] == 79 && headerBuffer[2] == 83 && headerBuffer[3] == 84) ||
-                        (headerBuffer[0] == 71 && headerBuffer[1] == 69 && headerBuffer[2] == 84))
+                    if (headerBuffer.Memory.Span[..4] == "POST"u8 || headerBuffer.Memory.Span[..3] == "GET"u8)
                     {
                         // Request is POST or GET (skip)
 
                         continue;
                     }
 
-                    MirroringHeader mirroringHeader = new(headerBuffer);
+                    MirroringHeader mirroringHeader = new(headerBuffer.Memory.Span[..128]);
                     byte[] payloadBuffer = new byte[mirroringHeader.PayloadSize];
 
                     await networkStream.ReadExactlyAsync(payloadBuffer, cancellationToken);
@@ -95,7 +94,6 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
         finally
         {
             _tcpListener.Stop();
-            ArrayPool<byte>.Shared.Return(headerBuffer);
         }
     }
 

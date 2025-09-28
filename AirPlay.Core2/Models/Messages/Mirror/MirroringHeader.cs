@@ -1,4 +1,6 @@
-﻿namespace AirPlay.Core2.Models.Messages.Mirror;
+﻿using System.Runtime.InteropServices;
+
+namespace AirPlay.Core2.Models.Messages.Mirror;
 
 public readonly struct MirroringHeader
 {
@@ -12,31 +14,45 @@ public readonly struct MirroringHeader
     public int Width { get; }
     public int Height { get; }
 
-    public MirroringHeader(byte[] header)
+    public MirroringHeader(ReadOnlySpan<byte> header)
     {
-        using var mem = new MemoryStream(header);
-        using var reader = new BinaryReader(mem);
-
-        PayloadSize = (int)reader.ReadUInt32();
-        PayloadType = (short)(reader.ReadUInt16() & 0xff);
-        PayloadOption = (short)reader.ReadUInt16();
+        var reader = new SpanReader(header);
+        PayloadSize = (int)reader.ReadNext<uint>(sizeof(uint));
+        PayloadType = (short)(reader.ReadNext<ushort>(sizeof(ushort)) & 0xff);
+        PayloadOption = (short)reader.ReadNext<ushort>(sizeof(ushort));
 
         if (PayloadType == 0)
         {
-            PayloadNtp = (long)reader.ReadUInt64();
+            PayloadNtp = (long)reader.ReadNext<ulong>(sizeof(ulong));
             PayloadPts = NtpToPts(PayloadNtp);
         }
         else if (PayloadType == 1)
         {
-            mem.Position = 40;
-            WidthSource = (int)reader.ReadSingle();
-            HeightSource = (int)reader.ReadSingle();
+            reader.Position = 40;
+            WidthSource = (int)reader.ReadNext<float>(sizeof(float));
+            HeightSource = (int)reader.ReadNext<float>(sizeof(float));
 
-            mem.Position = 56;
-            Width = (int)reader.ReadSingle();
-            Height = (int)reader.ReadSingle();
+            reader.Position = 56;
+            Width = (int)reader.ReadNext<float>(sizeof(float));
+            Height = (int)reader.ReadNext<float>(sizeof(float));
         }
     }
 
     private static long NtpToPts(long ntp) => (((ntp >> 32) & 0xffffffff) * 1000000) + ((ntp & 0xffffffff) * 1000 * 1000 / int.MaxValue);
+
+    private ref struct SpanReader
+    {
+        private readonly ReadOnlySpan<byte> data;
+
+        public int Position { get; set; }
+
+        public SpanReader(ReadOnlySpan<byte> data) { this.data = data; }
+
+        public T ReadNext<T>(int size) where T : unmanaged
+        {
+            var result = MemoryMarshal.Read<T>(data.Slice(Position, size));
+            Position += size;
+            return result;
+        }
+    }
 }
