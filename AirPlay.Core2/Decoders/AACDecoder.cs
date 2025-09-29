@@ -104,6 +104,7 @@ public unsafe class AACDecoder : IDecoder, IDisposable
     public void Dispose()
     {
         if (_disposed) return;
+        _disposed = true;
         GC.SuppressFinalize(this);
         _aacDecoder_Close(_decoder);
         _decoder = nint.Zero;
@@ -113,6 +114,7 @@ public unsafe class AACDecoder : IDecoder, IDisposable
 
     ~AACDecoder()
     {
+        _disposed = true;
         _aacDecoder_Close(_decoder);
         _decoder = nint.Zero;
         NativeLibrary.Free(_handle);
