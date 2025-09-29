@@ -10,7 +10,7 @@ public class PCMDecoder : IDecoder
 
     public int GetOutputStreamLength() => -1;
 
-    public int DecodeFrame(byte[] input, ref byte[] output, int length)
+    public int DecodeFrame(byte[] input, ref byte[] output)
     {
         Array.Copy(input, 0, output, 0, input.Length);
         return 0;

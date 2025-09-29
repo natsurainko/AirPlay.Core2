@@ -76,12 +76,16 @@ internal static class RaopBufferExtensions
                 int length = decoder.GetOutputStreamLength();
                 byte[] output = new byte[length];
 
-                if (decoder.DecodeFrame(raw, ref output, length) != 0)
-                    output = new byte[length];
-
-                //Array.Copy(output, 0, entry.AudioBuffer, 0, output.Length);
-                entry.AudioBuffer = output;
-                entry.AudioBufferLen = output.Length;
+                if (decoder.DecodeFrame(raw, ref output) == 0)
+                {
+                    entry.AudioBuffer = output;
+                    entry.AudioBufferLen = output.Length;
+                }
+                else
+                {
+                    entry.AudioBuffer = [];
+                    entry.AudioBufferLen = 0;
+                }
 
                 /* Update the raop_buffer seqnums */
                 if (raopBuffer.IsEmpty)

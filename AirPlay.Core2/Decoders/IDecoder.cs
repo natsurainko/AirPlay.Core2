@@ -10,5 +10,5 @@ public interface IDecoder
 
     int Config(int sampleRate, int channels, int bitDepth, int frameLength);
 
-    int DecodeFrame(byte[] input, ref byte[] output, int length);
+    int DecodeFrame(byte[] input, ref byte[] output);
 }

@@ -43,4 +43,10 @@
     <PackageReference Include="SharpJaad.AAC" Version="0.0.6" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="libfdk-aac.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

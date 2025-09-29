@@ -46,7 +46,7 @@ public class ALACDecoder : IDecoder//, IDisposable
 
     public int GetOutputStreamLength() => _pcm_pkt_size;
 
-    public int DecodeFrame(byte[] input, ref byte[] output, int outputLen)
+    public int DecodeFrame(byte[] input, ref byte[] output)
     {
         //var size = Marshal.SizeOf(input[0]) * input.Length;
         //var inputPtr = Marshal.AllocHGlobal(size);

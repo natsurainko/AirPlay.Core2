@@ -9,8 +9,8 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 
 using AesSecret = (byte[] DecryptedAesKey, byte[] AesIv, byte[] EcdhShared);
-using SyncData = (ulong SyncTime, ulong SyncTimestamp);
 using ResendRequest = (ushort MissingSeqNum, ushort Count, ulong Timestamp);
+using SyncData = (ulong SyncTime, ulong SyncTimestamp);
 
 namespace AirPlay.Core2.Connections.Audio;
 
@@ -48,7 +48,7 @@ public class AudioDataConnection : IDisposable
             // RTP info: 96 mpeg4-generic/44100/2, 96 mode=AAC-main; constantDuration=1024
             // (AAC-MAIN -> PCM)
 
-            _decoder = new AACDecoder(TransportType.TT_MP4_RAW, AudioObjectType.AOT_AAC_MAIN, 1);
+            _decoder = new AACDecoder();
             _decoder.Config(sampleRate: 44100, channels: 2, bitDepth: 16, frameLength: 1024);
         }
         else if (audioFormat == AudioFormat.AAC_ELD)
@@ -56,15 +56,8 @@ public class AudioDataConnection : IDisposable
             // RTP info: 96 mpeg4-generic/44100/2, 96 mode=AAC-eld; constantDuration=480
             // (AAC-ELD -> PCM)
 
-            //var frameLength = 480;
-            //var numChannels = 2;
-            //var bitDepth = 16;
-            //var sampleRate = 44100;
-
-            //_decoder = new AACDecoder(_clConfig.AACLibPath, TransportType.TT_MP4_RAW, AudioObjectType.AOT_ER_AAC_ELD, 1);
-            //_decoder.Config(sampleRate, numChannels, bitDepth, frameLength);
-
-            throw new Exception("AAC-ELD is not supported currently.");
+            _decoder = new AACDecoder();
+            _decoder.Config(sampleRate: 44100, channels: 2, bitDepth: 16, frameLength: 480);
         }
         else
         {
@@ -74,13 +67,12 @@ public class AudioDataConnection : IDisposable
 
         using var aes = Aes.Create();
 
+
         aes.KeySize = 128;
         aes.BlockSize = 128;
         aes.Mode = CipherMode.CBC;
-        aes.Padding = PaddingMode.None;
 
         aes.Key = AESUtils.HashAndTruncate(aesSecret.DecryptedAesKey, aesSecret.EcdhShared);
-        aes.IV = aesSecret.AesIv;
 
         _decryptor = aes.CreateDecryptor();
     }
@@ -164,6 +156,9 @@ public class AudioDataConnection : IDisposable
         _udpListener.Dispose();
 
         _decryptor.Dispose();
+
+        if (_decoder is AACDecoder aacDecoder)
+            aacDecoder.Dispose();
     }
 
     private void CheckAndRequestResend()

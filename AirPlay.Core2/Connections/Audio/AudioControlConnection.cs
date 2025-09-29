@@ -36,6 +36,8 @@ public class AudioControlConnection : IDisposable
 
     public void HandleResendPacket(ResendRequest resendRequest)
     {
+        if (!_udpListener.Connected) return;
+
         lock (_lock)
         {
             _controlSeqNum++;
