@@ -3,28 +3,37 @@
  * This code does not have all 'AAC Decoder' functionality
  */
 
+using AirPlay.Core2.Decoders;
 using AirPlay.Core2.Models.Messages.Audio;
 using AirPlay.Utils;
 using System.Runtime.InteropServices;
+
+using unsafe AacDecoderOpenHandler = delegate* unmanaged<int, uint, nint>;
+using unsafe AacDecoderConfigRawHandler = delegate* unmanaged<nint, byte**, uint*, global::AirPlay.Core2.Decoders.AACDecoderError>;
+using unsafe AacDecoderFillHandler = delegate* unmanaged<nint, byte**, uint*, uint*, global::AirPlay.Core2.Decoders.AACDecoderError>;
+using unsafe AacDecoderDecodeFrameHandler = delegate* unmanaged<nint, byte*, int, uint, global::AirPlay.Core2.Decoders.AACDecoderError>;
+using unsafe AacDecoderCloseHandler = delegate* unmanaged<nint, nint>;
+using System.Diagnostics.CodeAnalysis;
 
 namespace AirPlay.Core2.Decoders;
 
 public unsafe class AACDecoder : IDecoder, IDisposable
 {
+    private bool _disposed;
     private nint _handle;
     private nint _decoder;
 
-    private delegate nint aacDecoder_Open(int transportFmt, uint nrOfLayers);
-    private delegate AACDecoderError aacDecoder_ConfigRaw(nint decoder, nint[] conf, uint *length);
-    private delegate AACDecoderError aacDecoder_Fill(nint decoder, nint[] pBuffer, uint *bufferSize, uint *pBytesValid);
-    private delegate AACDecoderError aacDecoder_DecodeFrame(nint decoder, nint output, int pcm_pkt_size, uint flags);
-    private delegate nint aacDecoder_Close(nint decoder);
+    //private delegate nint aacDecoder_Open(int transportFmt, uint nrOfLayers);
+    //private delegate AACDecoderError aacDecoder_ConfigRaw(nint decoder, nint[] conf, uint *length);
+    //private delegate AACDecoderError aacDecoder_Fill(nint decoder, nint[] pBuffer, uint *bufferSize, uint *pBytesValid);
+    //private delegate AACDecoderError aacDecoder_DecodeFrame(nint decoder, nint output, int pcm_pkt_size, uint flags);
+    //private delegate nint aacDecoder_Close(nint decoder);
 
-    private aacDecoder_Open _aacDecoder_Open;
-    private aacDecoder_ConfigRaw _aacDecoder_ConfigRaw;
-    private aacDecoder_Fill _aacDecoder_Fill;
-    private aacDecoder_DecodeFrame _aacDecoder_DecodeFrame;
-    private aacDecoder_Close _aacDecoder_Close;
+    private AacDecoderOpenHandler _aacDecoder_Open;
+    private AacDecoderConfigRawHandler _aacDecoder_ConfigRaw;
+    private AacDecoderFillHandler _aacDecoder_Fill;
+    private AacDecoderDecodeFrameHandler _aacDecoder_DecodeFrame;
+    private AacDecoderCloseHandler _aacDecoder_Close;
 
     private AudioObjectType _audioObjectType;
 
@@ -35,22 +44,15 @@ public unsafe class AACDecoder : IDecoder, IDisposable
     public AACDecoder(TransportType transportFmt, AudioObjectType audioObjectType, uint nrOfLayers)
     {
         // Open library
-        _handle = LibraryLoader.DlOpen(Path.Combine(AppContext.BaseDirectory, "libfdk-aac.dll"), 0);
+        _handle = NativeLibrary.Load(Path.Combine(AppContext.BaseDirectory, "libfdk-aac.dll"));
 
-        // Get function pointers symbols
-        nint symAacDecoder_Open = LibraryLoader.DlSym(_handle, "aacDecoder_Open");
-        nint symAacDecoder_ConfigRaw = LibraryLoader.DlSym(_handle, "aacDecoder_ConfigRaw");
-        nint sysAacDecoder_GetStreamInfo = LibraryLoader.DlSym(_handle, "aacDecoder_GetStreamInfo");
-        nint sysAacDecoder_Fill = LibraryLoader.DlSym(_handle, "aacDecoder_Fill");
-        nint sysAacDecoder_DecodeFrame = LibraryLoader.DlSym(_handle, "aacDecoder_DecodeFrame");
-        nint sysAacDecoder_Close = LibraryLoader.DlSym(_handle, "aacDecoder_Close");
-
-        // Get delegates for the function pointers
-        _aacDecoder_Open = Marshal.GetDelegateForFunctionPointer<aacDecoder_Open>(symAacDecoder_Open);
-        _aacDecoder_ConfigRaw = Marshal.GetDelegateForFunctionPointer<aacDecoder_ConfigRaw>(symAacDecoder_ConfigRaw);
-        _aacDecoder_Fill = Marshal.GetDelegateForFunctionPointer<aacDecoder_Fill>(sysAacDecoder_Fill);
-        _aacDecoder_DecodeFrame = Marshal.GetDelegateForFunctionPointer<aacDecoder_DecodeFrame>(sysAacDecoder_DecodeFrame);
-        _aacDecoder_Close = Marshal.GetDelegateForFunctionPointer<aacDecoder_Close>(sysAacDecoder_Close);
+        // 获取函数指针
+        _aacDecoder_Open = (AacDecoderOpenHandler)NativeLibrary.GetExport(_handle, "aacDecoder_Open");
+        _aacDecoder_ConfigRaw = (AacDecoderConfigRawHandler)NativeLibrary.GetExport(_handle, "aacDecoder_ConfigRaw");
+        nint sysAacDecoder_GetStreamInfo = NativeLibrary.GetExport(_handle, "aacDecoder_GetStreamInfo"); // 这玩意怎么没人用
+        _aacDecoder_Fill = (AacDecoderFillHandler)NativeLibrary.GetExport(_handle, "aacDecoder_Fill");
+        _aacDecoder_DecodeFrame = (AacDecoderDecodeFrameHandler)NativeLibrary.GetExport(_handle, "aacDecoder_DecodeFrame");
+        _aacDecoder_Close = (AacDecoderCloseHandler)NativeLibrary.GetExport(_handle, "aacDecoder_Close");
 
         _decoder = _aacDecoder_Open((int)transportFmt, nrOfLayers);
 
@@ -65,7 +67,7 @@ public unsafe class AACDecoder : IDecoder, IDisposable
 
         var config = AudioSpecificConfig((int)_audioObjectType, (int)frequencyIndex, channels, bitDepth);
 
-        return Config(config);
+        return (int)Config(config);
     }
 
     public int GetOutputStreamLength()
@@ -73,7 +75,9 @@ public unsafe class AACDecoder : IDecoder, IDisposable
         return _pcmPktSize;
     }
 
-    public int DecodeFrame(byte[] input, ref byte[] output)
+    public int DecodeFrame(byte[] input, ref byte[] output) => (int)DecodeFrame(input, output);
+
+    public AACDecoderError DecodeFrame(Span<byte> input, Span<byte> output)
     {
         AACDecoderError ret;
         uint pkt_size = (uint)input.Length;
@@ -84,60 +88,69 @@ public unsafe class AACDecoder : IDecoder, IDisposable
         if(ret != AACDecoderError.AAC_DEC_OK)
         {
             Console.WriteLine($"aacDecoder_Fill error: {ret}");
-            return (int)ret;
+            return ret;
         }
 
-        ret = InternalDecodeFrame(ref output, 1920, fdk_flags);
+        ret = InternalDecodeFrame(output, 1920, fdk_flags);
         if (ret != AACDecoderError.AAC_DEC_OK)
         {
             Console.WriteLine($"aacDecoder_DecodeFrame error: {ret}");
-            return (int)ret;
+            return ret;
         }
 
-        return (int)ret;
+        return ret;
     }
 
     public void Dispose()
     {
+        if (_disposed) return;
+        GC.SuppressFinalize(this);
         _aacDecoder_Close(_decoder);
-        LibraryLoader.DlClose(_handle);
-        Marshal.FreeBSTR(_handle);
+        _decoder = nint.Zero;
+        NativeLibrary.Free(_handle);
+        _handle = IntPtr.Zero;
     }
 
-    private AACDecoderError Fill(nint decoder, byte[] pBuffer, uint bufferSize, uint pBytesValid)
+    ~AACDecoder()
     {
-        var size = Marshal.SizeOf(pBuffer[0]) * pBuffer.Length;
-        var ptr = Marshal.AllocHGlobal(size);
-        Marshal.Copy(pBuffer, 0, ptr, pBuffer.Length);
+        _aacDecoder_Close(_decoder);
+        _decoder = nint.Zero;
+        NativeLibrary.Free(_handle);
+        _handle = IntPtr.Zero;
+    }
 
-        var byteArrayPtr = new nint[]
+    private AACDecoderError Fill(nint decoder, Span<byte> pBuffer, uint bufferSize, uint pBytesValid)
+    {
+        fixed (byte* ptr = pBuffer)
         {
-            ptr
-        };
+            var byteArrayPtr = stackalloc byte*[]
+            {
+                ptr
+            };
 
-        var res = _aacDecoder_Fill(decoder, byteArrayPtr, &bufferSize, &pBytesValid);
+            var res = _aacDecoder_Fill(decoder, byteArrayPtr, &bufferSize, &pBytesValid);
 
-        return res;
+            return res;
+        }
     }
 
-    private AACDecoderError InternalDecodeFrame(ref byte[] output, int pcm_pkt_size, uint flags)
+    private AACDecoderError InternalDecodeFrame(Span<byte> output, int pcm_pkt_size, uint flags)
     {
-        int size = Marshal.SizeOf(output[0]) * output.Length;
-        nint ptr = Marshal.AllocHGlobal(size);
-
         AACDecoderError res;
+        var ptr = NativeMemory.AllocZeroed((nuint)output.Length);
         try
         {
-            res = _aacDecoder_DecodeFrame(_decoder, ptr, pcm_pkt_size, flags);
+            res = _aacDecoder_DecodeFrame(_decoder, (byte*)ptr, pcm_pkt_size, flags);
             if (res == AACDecoderError.AAC_DEC_OK)
+            fixed (byte* outputPtr = output)
             {
-                Marshal.Copy(ptr, output, 0, pcm_pkt_size);
+                NativeMemory.Copy(ptr, outputPtr, (nuint)pcm_pkt_size);
             }
         }
         finally
         {
-            if (ptr != nint.Zero)
-                Marshal.FreeHGlobal(ptr);
+            if (ptr != null)
+                NativeMemory.Free(ptr);
         }
 
         return res;
@@ -171,22 +184,21 @@ public unsafe class AACDecoder : IDecoder, IDisposable
         return bytes;
     }
 
-    private int Config(byte[] config)
+    private AACDecoderError Config(Span<byte> config)
     {
-        uint length = (uint)config.Length;
-
-        var size = Marshal.SizeOf(config[0]) * config.Length;
-        var ptr = Marshal.AllocHGlobal(size);
-        Marshal.Copy(config, 0, ptr, config.Length);
-
-        var byteArrayPtr = new nint[]
+        fixed (byte* ptr = config)
         {
-            ptr
-        };
+            var byteArrayPtr = stackalloc byte*[]
+            {
+                ptr
+            };
 
-        var res = _aacDecoder_ConfigRaw(_decoder, byteArrayPtr, &length);
+            var length = (uint)config.Length;
 
-        return (int)res;
+            var res = _aacDecoder_ConfigRaw(_decoder, byteArrayPtr, &length);
+
+            return res;
+        }
     }
 }
 
