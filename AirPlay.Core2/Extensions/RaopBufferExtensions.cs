@@ -1,7 +1,7 @@
 ﻿using AirPlay.Core2.Controllers;
 using AirPlay.Core2.Decoders;
 using AirPlay.Core2.Models.Messages.Audio;
-using System.Security.Cryptography;
+using Org.BouncyCastle.Crypto;
 
 namespace AirPlay.Core2.Extensions;
 
@@ -29,7 +29,7 @@ internal static class RaopBufferExtensions
             }
         }
 
-        public int Queue(ICryptoTransform decryptor, IDecoder decoder, byte[] data, ushort dataLength)
+        public int Queue(IBufferedCipher decryptor, IDecoder decoder, byte[] data, ushort dataLength)
         {
             lock (raopBuffer)
             {
@@ -64,9 +64,7 @@ internal static class RaopBufferExtensions
 
                 if (encryptedlen > 0)
                 {
-                    byte[] decryptedData = decryptor.TransformFinalBlock(data, 12, encryptedlen);
-                    Array.Copy(decryptedData, 0, data, 12, decryptedData.Length);
-
+                    decryptor.ProcessBytes(data, 12, encryptedlen, data, 12);
                     Array.Copy(data, 12, raw, 0, encryptedlen);
                 }
 
@@ -76,16 +74,11 @@ internal static class RaopBufferExtensions
                 int length = decoder.GetOutputStreamLength();
                 byte[] output = new byte[length];
 
-                if (decoder.DecodeFrame(raw, ref output) == 0)
-                {
-                    entry.AudioBuffer = output;
-                    entry.AudioBufferLen = output.Length;
-                }
-                else
-                {
-                    entry.AudioBuffer = [];
-                    entry.AudioBufferLen = 0;
-                }
+                if (decoder.DecodeFrame(raw, ref output) != 0)
+                    output = new byte[length];
+
+                Array.Copy(output, 0, entry.AudioBuffer, 0, output.Length);
+                entry.AudioBufferLen = output.Length;
 
                 /* Update the raop_buffer seqnums */
                 if (raopBuffer.IsEmpty)

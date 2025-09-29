@@ -3,6 +3,9 @@ using AirPlay.Core2.Decoders;
 using AirPlay.Core2.Extensions;
 using AirPlay.Core2.Models.Messages.Audio;
 using AirPlay.Core2.Utils;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
@@ -16,8 +19,11 @@ namespace AirPlay.Core2.Connections.Audio;
 
 public class AudioDataConnection : IDisposable
 {
-    private readonly ICryptoTransform _decryptor;
+    private readonly byte[] _aesKey;
     private readonly IDecoder _decoder;
+    private readonly IBufferedCipher _aesCbcDecrypt = CipherUtilities.GetCipher("AES/CBC/NoPadding");
+
+    private readonly AesSecret _aesSecret;
     private readonly Socket _udpListener = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
     private readonly CancellationTokenSource _tokenSource = new();
@@ -34,6 +40,8 @@ public class AudioDataConnection : IDisposable
     public AudioDataConnection(ushort receivePort, AudioFormat audioFormat, AesSecret aesSecret)
     {
         _udpListener.Bind(new IPEndPoint(IPAddress.Any, receivePort));
+        _aesSecret = aesSecret;
+        _aesKey = AESUtils.HashAndTruncate(_aesSecret.DecryptedAesKey, _aesSecret.EcdhShared);
 
         if (audioFormat == AudioFormat.ALAC)
         {
@@ -48,7 +56,7 @@ public class AudioDataConnection : IDisposable
             // RTP info: 96 mpeg4-generic/44100/2, 96 mode=AAC-main; constantDuration=1024
             // (AAC-MAIN -> PCM)
 
-            _decoder = new AACDecoder();
+            _decoder = new AACDecoder(TransportType.TT_MP4_RAW, AudioObjectType.AOT_AAC_MAIN, 1);
             _decoder.Config(sampleRate: 44100, channels: 2, bitDepth: 16, frameLength: 1024);
         }
         else if (audioFormat == AudioFormat.AAC_ELD)
@@ -56,7 +64,7 @@ public class AudioDataConnection : IDisposable
             // RTP info: 96 mpeg4-generic/44100/2, 96 mode=AAC-eld; constantDuration=480
             // (AAC-ELD -> PCM)
 
-            _decoder = new AACDecoder();
+            _decoder = new AACDecoder(TransportType.TT_MP4_RAW, AudioObjectType.AOT_ER_AAC_ELD, 1);
             _decoder.Config(sampleRate: 44100, channels: 2, bitDepth: 16, frameLength: 480);
         }
         else
@@ -64,17 +72,6 @@ public class AudioDataConnection : IDisposable
             // (PCM -> PCM)
             _decoder = new PCMDecoder();
         }
-
-        using var aes = Aes.Create();
-
-
-        aes.KeySize = 128;
-        aes.BlockSize = 128;
-        aes.Mode = CipherMode.CBC;
-
-        aes.Key = AESUtils.HashAndTruncate(aesSecret.DecryptedAesKey, aesSecret.EcdhShared);
-
-        _decryptor = aes.CreateDecryptor();
     }
 
     public void BeginDataMessageLoopWorker() => Task.Run(async () => await DataMessageLoopWorker(_tokenSource.Token), _tokenSource.Token);
@@ -90,8 +87,9 @@ public class AudioDataConnection : IDisposable
         lock (_resentLock)
         {
             _handingResentBuffer = new TaskCompletionSource();
+            InitAesCbcCipher();
 
-            if (_raopBuffer.Queue(_decryptor, _decoder, buffer, (ushort)buffer.Length) == 1)
+            if (_raopBuffer.Queue(_aesCbcDecrypt, _decoder, buffer, (ushort)buffer.Length) == 1)
                 _resentBeforeDequeue = true;
 
             _handingResentBuffer.SetResult();
@@ -123,7 +121,9 @@ public class AudioDataConnection : IDisposable
                 RaopBufferEntry? audiobuf;
                 uint timestamp = 0;
 
-                _ = _raopBuffer.Queue(_decryptor, _decoder, buffer.ToArray(), (ushort)udpReceiveResult);
+                InitAesCbcCipher();
+
+                _ = _raopBuffer.Queue(_aesCbcDecrypt, _decoder, buffer.ToArray(), (ushort)udpReceiveResult);
 
                 while ((audiobuf = _raopBuffer.Dequeue(ref timestamp, _resentBeforeDequeue)) != null)
                 {
@@ -140,8 +140,6 @@ public class AudioDataConnection : IDisposable
                 }
 
                 CheckAndRequestResend();
-
-                //await Task.Delay(10, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -155,10 +153,16 @@ public class AudioDataConnection : IDisposable
         _tokenSource.Dispose();
         _udpListener.Dispose();
 
-        _decryptor.Dispose();
-
         if (_decoder is AACDecoder aacDecoder)
             aacDecoder.Dispose();
+    }
+
+    private void InitAesCbcCipher()
+    {
+        var keyParameter = ParameterUtilities.CreateKeyParameter("AES", _aesKey);
+        var cipherParameters = new ParametersWithIV(keyParameter, _aesSecret.AesIv, 0, _aesSecret.AesIv.Length);
+
+        _aesCbcDecrypt.Init(false, cipherParameters);
     }
 
     private void CheckAndRequestResend()
