@@ -34,10 +34,11 @@ Some other references provided limited value and are not listed here.
 
 + [x] Supports multiple devices connecting simultaneously to the AirPlay receiver.
 + [x] Supports audio streaming from multiple devices in ALAC and AAC formats.
++ [x] Supports screen mirroring from multiple devices in H.264 format.
 + [x] Supports packet retransmission for real-time audio streams (fixes disconnection and packet loss issues present in the original implementation).
 + [x] Supports Dacp service for reverse control of audio connections.
 
 ### Features Under Development
 
-+ [ ] Support for screen mirroring from multiple devices.
-+ [ ] Support for H.264 video stream streaming.
++ [ ] Support for decoding AAC-ELD format audio
++ [ ] Support for video stream streaming.
