@@ -24,7 +24,6 @@ public partial class RtspConnection : IDisposable
 
     private readonly Ed25519 _ed25519;
     private readonly byte[] _publicKey;
-    //private readonly byte[] _privateKey;
 
     private Curve25519? _curve25519;
     private byte[]? _ecdhOurs;
@@ -56,7 +55,6 @@ public partial class RtspConnection : IDisposable
         _ed25519.FromSeed([.. Enumerable.Range(0, 32).Select(r => (byte)r)]);
 
         _publicKey = _ed25519.GetPublicKey();
-        //_privateKey = _ed25519.GetPrivateKey();
     }
 
     public event EventHandler? ConnectionClosed;

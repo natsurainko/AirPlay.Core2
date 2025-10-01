@@ -3,17 +3,14 @@
  * This code does not have all 'AAC Decoder' functionality
  */
 
-using AirPlay.Core2.Decoders;
 using AirPlay.Core2.Models.Messages.Audio;
-using AirPlay.Utils;
 using System.Runtime.InteropServices;
 
-using unsafe AacDecoderOpenHandler = delegate* unmanaged<int, uint, nint>;
-using unsafe AacDecoderConfigRawHandler = delegate* unmanaged<nint, byte**, uint*, global::AirPlay.Core2.Decoders.AACDecoderError>;
-using unsafe AacDecoderFillHandler = delegate* unmanaged<nint, byte**, uint*, uint*, global::AirPlay.Core2.Decoders.AACDecoderError>;
-using unsafe AacDecoderDecodeFrameHandler = delegate* unmanaged<nint, byte*, int, uint, global::AirPlay.Core2.Decoders.AACDecoderError>;
 using unsafe AacDecoderCloseHandler = delegate* unmanaged<nint, nint>;
-using System.Diagnostics.CodeAnalysis;
+using unsafe AacDecoderConfigRawHandler = delegate* unmanaged<nint, byte**, uint*, global::AirPlay.Core2.Decoders.AACDecoderError>;
+using unsafe AacDecoderDecodeFrameHandler = delegate* unmanaged<nint, byte*, int, uint, global::AirPlay.Core2.Decoders.AACDecoderError>;
+using unsafe AacDecoderFillHandler = delegate* unmanaged<nint, byte**, uint*, uint*, global::AirPlay.Core2.Decoders.AACDecoderError>;
+using unsafe AacDecoderOpenHandler = delegate* unmanaged<int, uint, nint>;
 
 namespace AirPlay.Core2.Decoders;
 
@@ -158,7 +155,7 @@ public unsafe class AACDecoder : IDecoder, IDisposable
         return res;
     }
 
-    private byte[] AudioSpecificConfig(int audioObjectType, int frequenceIndex, int channels, int bitDepth)
+    private static byte[] AudioSpecificConfig(int audioObjectType, int frequenceIndex, int channels, int bitDepth)
     {
         string bin;
         if (audioObjectType >= 31)

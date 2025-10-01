@@ -9,7 +9,6 @@ using Org.BouncyCastle.Security;
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
-using System.Security.Cryptography;
 
 using AesSecret = (byte[] DecryptedAesKey, byte[] AesIv, byte[] EcdhShared);
 using ResendRequest = (ushort MissingSeqNum, ushort Count, ulong Timestamp);
@@ -102,12 +101,11 @@ public class AudioDataConnection : IDisposable
 
     private async Task DataMessageLoopWorker(CancellationToken cancellationToken)
     {
-        using var memoryOwner = MemoryPool<byte>.Shared.Rent(AudioController.RAOP_PACKET_LENGTH);
-        Memory<byte> buffer = memoryOwner.Memory;
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(AudioController.RAOP_PACKET_LENGTH);
 
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            try
+            while (!cancellationToken.IsCancellationRequested)
             {
                 if (_handingResentBuffer != null)
                 {
@@ -123,11 +121,11 @@ public class AudioDataConnection : IDisposable
 
                 InitAesCbcCipher();
 
-                _ = _raopBuffer.Queue(_aesCbcDecrypt, _decoder, buffer.ToArray(), (ushort)udpReceiveResult);
+                _ = _raopBuffer.Queue(_aesCbcDecrypt, _decoder, buffer, (ushort)udpReceiveResult);
 
                 while ((audiobuf = _raopBuffer.Dequeue(ref timestamp, _resentBeforeDequeue)) != null)
                 {
-                    var pcmData = new PcmAudioData
+                    PcmAudioData pcmData = new()
                     {
                         Length = audiobuf.Value.AudioBufferLen,
                         Data = [.. audiobuf.Value.AudioBuffer.Take(audiobuf.Value.AudioBufferLen)],
@@ -141,10 +139,10 @@ public class AudioDataConnection : IDisposable
 
                 CheckAndRequestResend();
             }
-            catch (Exception ex)
-            {
-
-            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 

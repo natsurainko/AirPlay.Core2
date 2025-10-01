@@ -64,15 +64,13 @@ public class AudioControlConnection : IDisposable
 
     private async Task ControlMessageLoopWorker(CancellationToken cancellationToken)
     {
-        using var memoryOwner = MemoryPool<byte>.Shared.Rent(AudioController.RAOP_PACKET_LENGTH);
-        Memory<byte> buffer = memoryOwner.Memory;
+        byte[] packet = ArrayPool<byte>.Shared.Rent(AudioController.RAOP_PACKET_LENGTH);
 
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            try
+            while (!cancellationToken.IsCancellationRequested)
             {
-                int udpReceiveResult = await _udpListener.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
-                byte[] packet = buffer.ToArray();
+                int udpReceiveResult = await _udpListener.ReceiveAsync(packet, SocketFlags.None, cancellationToken);
 
                 using var memoryStream = new MemoryStream(packet);
                 using var reader = new BinaryReader(memoryStream);
@@ -91,9 +89,9 @@ public class AudioControlConnection : IDisposable
                 {
                     /* packetlen = 20
                      * bytes	description
-                       	8	RTP header without SSRC
-                       	8	current NTP time
-                       	4	RTP timestamp for the next audio packet
+                        8	RTP header without SSRC
+                        8	current NTP time
+                        4	RTP timestamp for the next audio packet
                      */
 
                     memoryStream.Position = 8;
@@ -108,10 +106,10 @@ public class AudioControlConnection : IDisposable
                     //Console.WriteLine("Unknown packet");
                 }
             }
-            catch (Exception)
-            {
-
-            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(packet);
         }
     }
 

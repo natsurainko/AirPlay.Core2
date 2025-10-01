@@ -65,28 +65,35 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
                     }
 
                     MirroringHeader mirroringHeader = new(headerBuffer.Memory.Span[..128]);
-                    byte[] payloadBuffer = new byte[mirroringHeader.PayloadSize];
+                    byte[] payloadBuffer = ArrayPool<byte>.Shared.Rent(mirroringHeader.PayloadSize);
 
-                    await networkStream.ReadExactlyAsync(payloadBuffer, cancellationToken);
-
-                    if (mirroringHeader.PayloadType == 0)
+                    try
                     {
-                        DecryptVideoData(payloadBuffer, out byte[] output);
+                        await networkStream.ReadExactlyAsync(payloadBuffer, 0, mirroringHeader.PayloadSize, cancellationToken);
 
-                        if (FrameSize != null && _spsPps != null)
-                            if (TryProcessVideo(output, _spsPps, _payloadPts, FrameSize.Value, out H264Data? h264Data))
-                                DataReceived?.Invoke(this, h264Data.Value);
-                    }
-                    else if (mirroringHeader.PayloadType == 1)
-                    {
-                        if (FrameSize?.Height != mirroringHeader.HeightSource || FrameSize?.Width != mirroringHeader.WidthSource)
+                        if (mirroringHeader.PayloadType == 0)
                         {
-                            FrameSize = new Size(mirroringHeader.WidthSource, mirroringHeader.HeightSource);
-                            FrameSizeChanged?.Invoke(this, FrameSize.Value);
-                        }
+                            DecryptVideoData(payloadBuffer, mirroringHeader.PayloadSize, out byte[] output);
 
-                        _payloadPts = mirroringHeader.PayloadPts;
-                        TryProcessSpsPps(payloadBuffer, out _spsPps);
+                            if (FrameSize != null && _spsPps != null)
+                                if (TryProcessVideo(output, _spsPps, _payloadPts, FrameSize.Value, out H264Data? h264Data))
+                                    DataReceived?.Invoke(this, h264Data.Value);
+                        }
+                        else if (mirroringHeader.PayloadType == 1)
+                        {
+                            if (FrameSize?.Height != mirroringHeader.HeightSource || FrameSize?.Width != mirroringHeader.WidthSource)
+                            {
+                                FrameSize = new Size(mirroringHeader.WidthSource, mirroringHeader.HeightSource);
+                                FrameSizeChanged?.Invoke(this, FrameSize.Value);
+                            }
+
+                            _payloadPts = mirroringHeader.PayloadPts;
+                            TryProcessSpsPps(payloadBuffer, out _spsPps);
+                        }
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(payloadBuffer);
                     }
                 }
             }
@@ -104,41 +111,38 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
         _cipher.Dispose();
     }
 
-    private void DecryptVideoData(byte[] videoData, out byte[] output)
+    private void DecryptVideoData(byte[] input, int length, out byte[] output)
     {
         if (_nextDecryptCount > 0)
         {
             for (int i = 0; i < _nextDecryptCount; i++)
-                videoData[i] = (byte)(videoData[i] ^ _og[16 - _nextDecryptCount + i]);
+                input[i] = (byte)(input[i] ^ _og[16 - _nextDecryptCount + i]);
         }
 
-        int encryptlen = (videoData.Length - _nextDecryptCount) / 16 * 16;
+        int encryptlen = (length - _nextDecryptCount) / 16 * 16;
 
-        byte[] decrypted = _cipher.ProcessBytes([.. videoData.Skip(_nextDecryptCount).Take(encryptlen)]);
-        Array.Copy(decrypted, 0, videoData, _nextDecryptCount, decrypted.Length);
+        byte[] decrypted = _cipher.ProcessBytes([.. input.Skip(_nextDecryptCount).Take(encryptlen)]);
+        Array.Copy(decrypted, 0, input, _nextDecryptCount, decrypted.Length);
 
-        Array.Copy(videoData, _nextDecryptCount, videoData, _nextDecryptCount, encryptlen);
+        Array.Copy(input, _nextDecryptCount, input, _nextDecryptCount, encryptlen);
 
-        int restlen = (videoData.Length - _nextDecryptCount) % 16;
-        int reststart = videoData.Length - restlen;
+        int restlen = (length - _nextDecryptCount) % 16;
+        int reststart = length - restlen;
         _nextDecryptCount = 0;
 
         if (restlen > 0)
         {
             Array.Fill(_og, (byte)0);
-            Array.Copy(videoData, reststart, _og, 0, restlen);
+            Array.Copy(input, reststart, _og, 0, restlen);
 
             Array.Copy(_cipher.ProcessBytes([.. _og.Take(16)]), _og, 16);
 
-            Array.Copy(_og, 0, videoData, reststart, restlen);
+            Array.Copy(_og, 0, input, reststart, restlen);
             _nextDecryptCount = 16 - restlen;
         }
 
-        output = new byte[videoData.Length];
-        Array.Copy(videoData, 0, output, 0, videoData.Length);
-
-        // Release video data
-        videoData = null!;
+        output = new byte[length];
+        Array.Copy(input, 0, output, 0, length);
     }
 
     private static bool TryProcessVideo(byte[] payload, byte[] spsPps, long pts, Size frameSize, [NotNullWhen(true)] out H264Data? h264Data)

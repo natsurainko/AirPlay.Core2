@@ -1,12 +1,10 @@
 ﻿using AirPlay.Core2.Extensions;
 using AirPlay.Core2.Models.Configs;
-using AirPlay.Core2.Models.Messages.Rtsp;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
 namespace AirPlay.Core2.Connections;
 
