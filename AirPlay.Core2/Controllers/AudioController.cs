@@ -24,14 +24,11 @@ public class AudioController : IDisposable
     public int? LatencyMin { get; init; }
     public int? LatencyMax { get; init; }
 
-    public double Volume { get; private set; } = 0;
-
     public event EventHandler<PcmAudioData>? AudioDataReceived
     {
         add => _dataConnection?.DataReceived += value;
         remove => _dataConnection?.DataReceived -= value;
     }
-    public event EventHandler<double>? RemoteSetVolumeRequest;
 
     public AudioController(AudioFormat audioFormat, AesSecret aesSecret)
     {
@@ -69,17 +66,9 @@ public class AudioController : IDisposable
 
     public void Flush(int nextSeq) => _dataConnection?.Flush(nextSeq);
 
-    public void SetVolume(double volume) => Volume = volume;
-
     public void Dispose()
     {
         _dataConnection.Dispose();
         _controlConnection.Dispose();
-    }
-
-    internal void RemoteSetVolume(double volume)
-    {
-        Volume = volume;
-        RemoteSetVolumeRequest?.Invoke(this, volume);
     }
 }

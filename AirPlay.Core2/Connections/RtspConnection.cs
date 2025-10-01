@@ -123,7 +123,8 @@ public partial class RtspConnection : IDisposable
 
             lastRequestTime = DateTime.Now;
 
-            if (_disconnectRequested) await _client.Client.DisconnectAsync(false, cancellationToken);
+            if (_disconnectRequested || (_deviceSession?.RequestedDisconnecet ?? false)) 
+                await _client.Client.DisconnectAsync(false, cancellationToken);
         }
     }
 

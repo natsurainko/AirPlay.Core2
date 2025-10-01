@@ -362,7 +362,7 @@ public partial class RtspConnection
             // The volume is a float value representing the audio attenuation in dB.
             // Then it goes from –30 to 0.
             // A value of –144 means the audio is muted.
-            double volume = _deviceSession?.AudioController?.Volume ?? 0;
+            double volume = ((_deviceSession?.Volume ?? 100) / 100 * 30) - 30;
             byte[] output = Encoding.ASCII.GetBytes($"volume: {volume:0.000000}\r\n"); // if missing the "\r\n", the device will disconnect
 
             responseMessage.Headers.Add("Content-Type", "text/parameters");
@@ -444,7 +444,7 @@ public partial class RtspConnection
             (string key, string value) = (keyPair[0], keyPair[1]);
 
             if (key.Equals("volume", StringComparison.OrdinalIgnoreCase))
-                _deviceSession?.AudioController?.RemoteSetVolume(double.Parse(value));
+                _deviceSession?.RemoteSetVolume(double.Parse(value));
             else if (key.Equals("progress", StringComparison.OrdinalIgnoreCase))
             {
                 string[] progressValues = value.Split("/", StringSplitOptions.RemoveEmptyEntries);

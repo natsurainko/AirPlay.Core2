@@ -1,5 +1,6 @@
 ﻿using AirPlay.Core2.Controllers;
 using AirPlay.Core2.Crypto;
+using AirPlay.Core2.Extensions;
 using AirPlay.Core2.Models.Messages;
 using AirPlay.Core2.Models.Messages.Audio;
 using Microsoft.Extensions.Logging;
@@ -10,6 +11,7 @@ namespace AirPlay.Core2.Models;
 public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, ILogger? logger = null) : IDisposable
 {
     private readonly byte[] _decryptedAesKey = new byte[16];
+    private Action<double>? _remoteSetVolumeAction;
 
     public event EventHandler? AudioControllerCreated;
     public event EventHandler? AudioControllerClosed;
@@ -29,6 +31,12 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
 
     public bool IsMirrorSession { get; init; }
 
+    public bool RequestedDisconnecet { get; private set; }
+
+    public double Volume { get; private set; } = 100;
+
+    public TimeSpan VolumeDelay => IsMirrorSession ? TimeSpan.Zero : TimeSpan.FromSeconds(1.5);
+
     public IPEndPoint? DacpServiceEndPoint { get; private set; }
 
     public AudioController? AudioController { get; private set; }
@@ -38,6 +46,8 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
     public event EventHandler<MediaProgressInfo>? MediaProgressInfoReceived;
     public event EventHandler<MediaWorkInfo>? MediaWorkInfoReceived;
     public event EventHandler<byte[]>? MediaCoverReceived;
+    public event EventHandler<double>? RemoteSetVolumeRequest;
+
     public event EventHandler? DacpServiceFound;
 
     public void DecrypteAesKey(byte[] keyMsg, byte[] aesKey) => OmgHax.DecryptAesKey(keyMsg, aesKey, _decryptedAesKey);
@@ -106,12 +116,37 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
         CloseAudioController();
         CloseMirrorController();
     }
+    
+    public void Disconnect() => RequestedDisconnecet = true;
+
+    public async Task SetVolumeAsync(double volume, HttpClient httpClient)
+    {
+        for (int i = 0; i < Math.Abs(Volume - volume) / 6; i++)
+            await SendMediaControlCommandAsync(httpClient, volume < Volume ? MediaControlCommand.VolumeDown : MediaControlCommand.VolumeUp);
+
+        Volume = volume;
+    }
 
     internal void RemoteSetProgress(MediaProgressInfo progressInfo) => MediaProgressInfoReceived?.Invoke(this, progressInfo);
 
     internal void RemoteSetWorkInfo(MediaWorkInfo mediaWorkInfo) => MediaWorkInfoReceived?.Invoke(this, mediaWorkInfo);
 
     internal void RemoteSetCover(byte[] mediaCover) => MediaCoverReceived?.Invoke(this, mediaCover);
+
+    internal void RemoteSetVolume(double volume)
+    {
+        if (_remoteSetVolumeAction == null)
+        {
+            _remoteSetVolumeAction = volume =>
+            {
+                Volume = (volume + 30) / 30 * 100;
+                RemoteSetVolumeRequest?.Invoke(this, Volume);
+            };
+            _remoteSetVolumeAction = _remoteSetVolumeAction.Debounce(250);
+        }
+
+        _remoteSetVolumeAction(volume);
+    }
 
     internal void SetDacpServiceEndPoint(IPEndPoint? endPoint)
     {
