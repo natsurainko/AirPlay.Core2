@@ -8,4 +8,6 @@ public static class Constants
     public const string DEVICE_MODEL = "AppleTV5,3";
 
     public const string FEATURES = "0x5A7FFFF7,0x1E";
+
+    public const int MAX_FPS = 60;
 }
