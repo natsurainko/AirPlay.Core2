@@ -42,7 +42,6 @@
     <PackageReference Include="Portable.BouncyCastle" Version="1.9.0" />
     <PackageReference Include="Rebex.Elliptic.Curve25519" Version="1.2.2" />
     <PackageReference Include="Rebex.Elliptic.Ed25519" Version="1.2.2" />
-    <PackageReference Include="SharpJaad.AAC" Version="0.0.6" />
   </ItemGroup>
 
   <ItemGroup>
