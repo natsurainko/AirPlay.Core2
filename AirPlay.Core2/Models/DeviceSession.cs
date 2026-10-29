@@ -49,6 +49,7 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
     public event EventHandler<double>? RemoteSetVolumeRequest;
 
     public event EventHandler? DacpServiceFound;
+    public event EventHandler? DacpServiceChanged;
 
     public void DecrypteAesKey(byte[] keyMsg, byte[] aesKey) => OmgHax.DecryptAesKey(keyMsg, aesKey, _decryptedAesKey);
 
@@ -113,6 +114,7 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
 
     public void Dispose()
     {
+        SetDacpServiceEndPoint(null);
         CloseAudioController();
         CloseMirrorController();
     }
@@ -150,7 +152,10 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
 
     internal void SetDacpServiceEndPoint(IPEndPoint? endPoint)
     {
+        if (Equals(DacpServiceEndPoint, endPoint)) return;
+
         DacpServiceEndPoint = endPoint;
+        DacpServiceChanged?.Invoke(this, EventArgs.Empty);
 
         if (endPoint != null)
         {

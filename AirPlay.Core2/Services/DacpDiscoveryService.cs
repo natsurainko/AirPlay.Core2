@@ -1,72 +1,103 @@
-﻿using AirPlay.Core2.Models;
+using AirPlay.Core2.Models;
 using Makaretu.Dns;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Net;
 
 namespace AirPlay.Core2.Services;
 
-public class DacpDiscoveryService(MulticastService mdns, SessionManager sessionManager) : IHostedService
+public class DacpDiscoveryService(MulticastService mdns, SessionManager sessionManager,
+    ILogger<DacpDiscoveryService>? logger = null) : BackgroundService
 {
     private readonly MulticastService _mdns = mdns ?? throw new ArgumentNullException(nameof(mdns));
-    private ServiceDiscovery? _serviceDiscovery;
-
-    private readonly ConcurrentDictionary<string, (DomainName, IPEndPoint)> _dacpServices = [];
+    private readonly ConcurrentDictionary<string, (DomainName Name, IPEndPoint EndPoint)> _dacpServices
+        = new(StringComparer.OrdinalIgnoreCase);
 
     public event EventHandler<IPEndPoint>? OnDacpServiceShutdown;
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _serviceDiscovery = new ServiceDiscovery(_mdns);
-        _serviceDiscovery.ServiceInstanceDiscovered += OnServiceInstanceDiscovered;
-        _serviceDiscovery.ServiceInstanceShutdown += OnServiceInstanceShutdown;
-
+        using var discovery = new ServiceDiscovery(_mdns);
+        discovery.ServiceInstanceDiscovered += OnServiceInstanceDiscovered;
+        discovery.ServiceInstanceShutdown += OnServiceInstanceShutdown;
         sessionManager.SessionCreated += OnSessionCreated;
-        return Task.CompletedTask;
+
+        try
+        {
+            // AirPlayPublisher starts the shared mDNS transport later in host startup.
+            await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+            do
+            {
+                try
+                {
+                    discovery.QueryServiceInstances("_dacp._tcp");
+                }
+                catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+                {
+                    logger?.LogWarning(ex, "Failed to query DACP services; discovery will retry.");
+                }
+            }
+            while (await timer.WaitForNextTickAsync(stoppingToken));
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            sessionManager.SessionCreated -= OnSessionCreated;
+            discovery.ServiceInstanceDiscovered -= OnServiceInstanceDiscovered;
+            discovery.ServiceInstanceShutdown -= OnServiceInstanceShutdown;
+            _dacpServices.Clear();
+            // The shared MulticastService is managed by the publisher and DI container.
+        }
     }
 
-    private void OnSessionCreated(object? sender, DeviceSession e)
+    private void OnSessionCreated(object? sender, DeviceSession session)
     {
-        if (_dacpServices.TryGetValue(e.DacpId, out var dacpService))
-            e.SetDacpServiceEndPoint(dacpService.Item2);
+        if (_dacpServices.TryGetValue(session.DacpId, out var service))
+            session.SetDacpServiceEndPoint(service.EndPoint);
     }
 
     private void OnServiceInstanceDiscovered(object? sender, ServiceInstanceDiscoveryEventArgs e)
     {
-        if (e.Message.Answers.Any(a => a is SRVRecord && a.CanonicalName.StartsWith($"iTunes_Ctrl_", StringComparison.OrdinalIgnoreCase)))
+        var records = e.Message.Answers.Concat(e.Message.AdditionalRecords).ToArray();
+
+        foreach (var srv in records.OfType<SRVRecord>())
         {
-            SRVRecord sRVRecord = e.Message.Answers.OfType<SRVRecord>()
-                .First(a => a is not null);
+            if (srv.Name != e.ServiceInstanceName) continue;
 
-            AddressRecord? addressRecord = e.Message.AdditionalRecords.OfType<AddressRecord>()
-                .Concat(e.Message.Answers.OfType<AddressRecord>())
-                .FirstOrDefault(a => a.Name == sRVRecord.Target && a.Type == DnsType.A);
+            const string prefix = "iTunes_Ctrl_";
+            string instance = srv.Name.Labels[0];
+            if (!instance.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || instance.Length == prefix.Length)
+                continue;
 
-            if (addressRecord == null) return;
+            var address = records.OfType<AddressRecord>()
+                .FirstOrDefault(a => a.Name == srv.Target && a.Type == DnsType.A);
+            if (address == null) continue;
 
-            string dacpId = sRVRecord.Name.Labels[0].Replace("iTunes_Ctrl_", string.Empty);
-            IPEndPoint iPEndPoint = new(addressRecord.Address, sRVRecord.Port);
+            string dacpId = instance[prefix.Length..];
+            var endPoint = new IPEndPoint(address.Address, srv.Port);
+            _dacpServices[dacpId] = (srv.Name, endPoint);
 
-            _dacpServices.AddOrUpdate(dacpId, (e.ServiceInstanceName, iPEndPoint), 
-                (key, oldValue) => (e.ServiceInstanceName, iPEndPoint));
+            // Discovery may complete after SessionCreated, so update existing sessions too.
+            sessionManager.SetDacpServiceEndPoint(dacpId, endPoint);
         }
     }
 
     private void OnServiceInstanceShutdown(object? sender, ServiceInstanceShutdownEventArgs e)
     {
-        var dacpId = _dacpServices.FirstOrDefault(kv => kv.Value.Item1 == e.ServiceInstanceName);
+        foreach (var service in _dacpServices)
+        {
+            if (service.Value.Name != e.ServiceInstanceName) continue;
 
-        if (_dacpServices.TryRemove(dacpId.Key, out var kvp))
-            OnDacpServiceShutdown?.Invoke(this, kvp.Item2);
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        _serviceDiscovery?.Dispose();
-        _mdns.Stop();
-        _mdns.Dispose();
-
-        return Task.CompletedTask;
+            if (_dacpServices.TryRemove(service.Key, out var removed))
+            {
+                sessionManager.SetDacpServiceEndPoint(service.Key, null);
+                OnDacpServiceShutdown?.Invoke(this, removed.EndPoint);
+            }
+        }
     }
 }

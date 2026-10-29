@@ -37,11 +37,20 @@ public class SessionManager
 
     public bool TryGetSession(IPEndPoint endpoint, [NotNullWhen(true)] out DeviceSession? session) => _sessions.TryGetValue(endpoint, out session);
 
+    internal void SetDacpServiceEndPoint(string dacpId, IPEndPoint? endPoint)
+    {
+        foreach (var session in _sessions.Values)
+        {
+            if (string.Equals(session.DacpId, dacpId, StringComparison.OrdinalIgnoreCase))
+                session.SetDacpServiceEndPoint(endPoint);
+        }
+    }
+
     public bool TryGetSession(string dacpId, [NotNullWhen(true)] out DeviceSession? session)
     {
         foreach (var kvp in _sessions)
         {
-            if (kvp.Value.DacpId == dacpId)
+            if (string.Equals(kvp.Value.DacpId, dacpId, StringComparison.OrdinalIgnoreCase))
             {
                 session = kvp.Value;
                 return true;
