@@ -35,7 +35,7 @@ public class DeviceSession(byte[] aesIv, byte[] ecdhShared, ushort timingPort, I
 
     public double Volume { get; private set; } = 100;
 
-    public TimeSpan VolumeDelay => IsMirrorSession ? TimeSpan.Zero : TimeSpan.FromSeconds(1.5);
+    public TimeSpan VolumeDelay => TimeSpan.Zero; // IsMirrorSession ? TimeSpan.Zero : TimeSpan.FromSeconds(1.5);
 
     public IPEndPoint? DacpServiceEndPoint { get; private set; }
 
