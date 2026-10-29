@@ -1,6 +1,7 @@
 ﻿using AirPlay.Core2.Models.Messages.Mirror;
 using AirPlay.Core2.Utils;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Net;
@@ -88,7 +89,7 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
                             }
 
                             _payloadPts = mirroringHeader.PayloadPts;
-                            TryProcessSpsPps(payloadBuffer, out _spsPps);
+                            TryProcessSpsPps(payloadBuffer.AsSpan(0, mirroringHeader.PayloadSize), out _spsPps);
                         }
                     }
                     finally
@@ -113,22 +114,30 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
 
     private void DecryptVideoData(byte[] input, int length, out byte[] output)
     {
-        if (_nextDecryptCount > 0)
+        int consumed = Math.Min(length, _nextDecryptCount);
+        int keyStreamOffset = 16 - _nextDecryptCount;
+
+        for (int i = 0; i < consumed; i++)
+            input[i] ^= _og[keyStreamOffset + i];
+
+        _nextDecryptCount -= consumed;
+
+        if (consumed == length)
         {
-            for (int i = 0; i < _nextDecryptCount; i++)
-                input[i] = (byte)(input[i] ^ _og[16 - _nextDecryptCount + i]);
+            output = input.AsSpan(0, length).ToArray();
+            return;
         }
 
-        int encryptlen = (length - _nextDecryptCount) / 16 * 16;
+        int encryptlen = (length - consumed) / 16 * 16;
 
-        byte[] decrypted = _cipher.ProcessBytes([.. input.Skip(_nextDecryptCount).Take(encryptlen)]);
-        Array.Copy(decrypted, 0, input, _nextDecryptCount, decrypted.Length);
+        if (encryptlen > 0)
+        {
+            byte[] decrypted = _cipher.ProcessBytes(input.AsSpan(consumed, encryptlen).ToArray());
+            Array.Copy(decrypted, 0, input, consumed, decrypted.Length);
+        }
 
-        Array.Copy(input, _nextDecryptCount, input, _nextDecryptCount, encryptlen);
-
-        int restlen = (length - _nextDecryptCount) % 16;
+        int restlen = (length - consumed) % 16;
         int reststart = length - restlen;
-        _nextDecryptCount = 0;
 
         if (restlen > 0)
         {
@@ -148,29 +157,30 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
     private static bool TryProcessVideo(byte[] payload, byte[] spsPps, long pts, Size frameSize, [NotNullWhen(true)] out H264Data? h264Data)
     {
         h264Data = null;
-        int naluSize = 0;
+        if (payload.Length == 0 || spsPps.Length == 0) return false;
 
-        while (naluSize < payload.Length)
+        int offset = 0;
+        int frameType = 0;
+        bool hasIdr = false;
+
+        while (offset < payload.Length)
         {
-            int nc_len = (payload[naluSize + 3] & 0xFF) | ((payload[naluSize + 2] & 0xFF) << 8) | ((payload[naluSize + 1] & 0xFF) << 16) | ((payload[naluSize] & 0xFF) << 24);
+            if (payload.Length - offset < 4) return false;
 
-            if (nc_len > 0)
-            {
-                payload[naluSize] = 0;
-                payload[naluSize + 1] = 0;
-                payload[naluSize + 2] = 0;
-                payload[naluSize + 3] = 1;
-                naluSize += nc_len + 4;
-            }
+            uint nalLength = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(offset, 4));
+            if (nalLength == 0 || nalLength > (uint)(payload.Length - offset - 4))
+                return false;
 
-            if (payload.Length - nc_len > 4) return false;
+            int nalType = payload[offset + 4] & 0x1f;
+            if (offset == 0 || nalType is >= 1 and <= 5)
+                frameType = nalType;
+            hasIdr |= nalType == 5;
+
+            BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(offset, 4), 1);
+            offset += 4 + (int)nalLength;
         }
 
-        if (spsPps.Length == 0) return false;
-
-        int frameType = payload[4] & 0x1f;
-
-        if (frameType == 5)
+        if (hasIdr)
         {
             byte[] payloadOut = new byte[payload.Length + spsPps.Length];
 
@@ -187,8 +197,6 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
                 Length = payload.Length + spsPps.Length
             };
 
-            // Release payload
-            payload = null!;
             return true;
         }
 
@@ -204,31 +212,47 @@ public class MirrorDataConnection(ushort receivePort, string streamConnectionId,
         return true;
     }
 
-    private static bool TryProcessSpsPps(byte[] payload, [NotNullWhen(true)] out byte[]? spsPps)
+    private static bool TryProcessSpsPps(ReadOnlySpan<byte> payload, [NotNullWhen(true)] out byte[]? spsPps)
     {
         spsPps = null;
-        H264Codec h264 = new(payload);
 
-        if (h264.LengthOfSps + h264.LengthOfPps > 102400) 
+        // AVCDecoderConfigurationRecord; video payloads below use 4-byte NAL lengths.
+        if (payload.Length < 7 || payload[0] != 1 || (payload[4] & 0x03) != 3)
             return false;
 
-        int spsPpsLen = h264.LengthOfSps + h264.LengthOfPps + 8;
-        spsPps = new byte[spsPpsLen];
+        int spsCount = payload[5] & 0x1f;
+        if (spsCount == 0) return false;
 
-        spsPps[0] = 0;
-        spsPps[1] = 0;
-        spsPps[2] = 0;
-        spsPps[3] = 1;
+        using var output = new MemoryStream();
+        int offset = 6;
 
-        Array.Copy(h264.SequenceParameterSet, 0, spsPps, 4, h264.LengthOfSps);
+        for (int i = 0; i < spsCount; i++)
+            if (!TryAppendParameterSet(payload, ref offset, output)) return false;
 
-        spsPps[h264.LengthOfSps + 4] = 0;
-        spsPps[h264.LengthOfSps + 5] = 0;
-        spsPps[h264.LengthOfSps + 6] = 0;
-        spsPps[h264.LengthOfSps + 7] = 1;
+        if (offset >= payload.Length) return false;
+        int ppsCount = payload[offset++];
+        if (ppsCount == 0) return false;
 
-        Array.Copy(h264.PictureParameterSet, 0, spsPps, h264.LengthOfSps + 8, h264.LengthOfPps);
+        for (int i = 0; i < ppsCount; i++)
+            if (!TryAppendParameterSet(payload, ref offset, output)) return false;
 
+        spsPps = output.ToArray();
+        return true;
+    }
+
+    private static bool TryAppendParameterSet(ReadOnlySpan<byte> payload, ref int offset, MemoryStream output)
+    {
+        if (payload.Length - offset < 2) return false;
+
+        int length = BinaryPrimitives.ReadUInt16BigEndian(payload.Slice(offset, 2));
+        offset += 2;
+
+        if (length == 0 || length > payload.Length - offset || output.Length + length + 4 > 102400)
+            return false;
+
+        output.Write([0, 0, 0, 1]);
+        output.Write(payload.Slice(offset, length));
+        offset += length;
         return true;
     }
 }
