@@ -38,6 +38,12 @@ Some other references provided limited value and are not listed here.
 + [x] Supports packet retransmission for real-time audio streams (fixes disconnection and packet loss issues present in the original implementation).
 + [x] Supports Dacp service for reverse control of audio connections.
 
+### Screen Mirroring Configuration
+
+- Configure `AirTunesConfig.MirrorWidth`, `MirrorHeight`, and `MirrorMaxFps` through `services.Configure<AirTunesConfig>(...)` before starting the host. Defaults are `2560 × 1440` and `30 FPS`.
+- These values advertise receiver display capabilities via `/info`; the sender determines the actual encoded resolution and frame rate. Higher settings do not guarantee higher-quality or higher-frame-rate output.
+- The core library does not persist these settings or provide a settings UI; this is the responsibility of the host application.
+
 ### Features Under Development
 
 + [ ] Support for video stream streaming.
