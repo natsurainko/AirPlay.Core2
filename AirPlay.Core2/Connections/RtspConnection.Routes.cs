@@ -17,7 +17,7 @@ public partial class RtspConnection
     {
         Dictionary<string, object> infoDictionary = new()
         {
-            { "features", 130367356919 },
+            { "features", Constants.FEATURES_VALUE },
             { "name", "airserver" },
             {
                 "displays",

@@ -37,11 +37,6 @@ public class AirPlayService(ILoggerFactory loggerFactory, IOptions<AirPlayConfig
             _httpConnections.TryAdd(remoteEndPoint, connection);
         }
     }
-
-    public override Task StopAsync(CancellationToken cancellationToken)
-    {
-        return base.StopAsync(cancellationToken);
-    }
 }
 
 internal static partial class AirPlayServiceLoggers

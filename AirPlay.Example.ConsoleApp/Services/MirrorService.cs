@@ -18,7 +18,8 @@ internal class MirrorService(SessionManager sessionManager) : IHostedService
                 //var fileStream = File.Create($"outputs\\{session.ActiveRemote}.h264");
                 //_mirroringSession.TryAdd(session, fileStream);
 
-                //session.MirrorController!.H264DataReceived += (_, d) => Task.Run(() => fileStream.WriteAsync(d.Data));
+                // Select an H264MirrorVideoProcessor via controller.ProcessorRequested,
+                // then subscribe to processor.FrameReceived to consume H264Data.
             };
 
             session.MirrorControllerClosed += (_, _) =>

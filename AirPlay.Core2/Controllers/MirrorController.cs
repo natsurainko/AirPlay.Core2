@@ -1,5 +1,6 @@
 ﻿using AirPlay.Core2.Connections.Mirror;
 using AirPlay.Core2.Models.Messages.Mirror;
+using AirPlay.Core2.Processors.Mirror;
 using AirPlay.Core2.Utils;
 using System.Drawing;
 
@@ -17,15 +18,21 @@ public class MirrorController : IDisposable
 
     public Size? FrameSize => _dataConnection.FrameSize;
 
+    public MirrorVideoCodec VideoCodec => _dataConnection.VideoCodec;
+
+    public MirrorVideoProcessor? VideoProcessor => _dataConnection.VideoProcessor;
+
+    public bool IsVideoConfigured => _dataConnection.IsVideoConfigured;
+
     public event EventHandler<Size>? FrameSizeChanged
     {
         add => _dataConnection?.FrameSizeChanged += value;
         remove => _dataConnection?.FrameSizeChanged -= value;
     }
-    public event EventHandler<H264Data>? H264DataReceived
+    public event EventHandler<MirrorProcessorRequestedEventArgs>? ProcessorRequested
     {
-        add => _dataConnection?.DataReceived += value;
-        remove => _dataConnection?.DataReceived -= value;
+        add => _dataConnection.ProcessorRequested += value;
+        remove => _dataConnection.ProcessorRequested -= value;
     }
 
     public MirrorController(string streamConnectionId, AesSecret aesSecret)
